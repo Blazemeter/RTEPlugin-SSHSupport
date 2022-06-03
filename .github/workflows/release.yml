@@ -1,0 +1,13 @@
+name: publish release
+on:
+  release:
+    types: [ published ]
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    concurrency: blazemeter_test
+    steps:
+      - name: Deploy github pages
+        run: .github/vuepress-deploy.sh
+        env:
+          ACCESS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
