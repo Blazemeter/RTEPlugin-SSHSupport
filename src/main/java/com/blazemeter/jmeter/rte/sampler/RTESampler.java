@@ -532,7 +532,6 @@ public class RTESampler extends AbstractSampler implements ThreadListener,
 
     try {
       client = getClient();
-      configureClient(client);
       configureWaitForDisconnect(client);
       if (getAction() == Action.DISCONNECT) {
         if (client != null) {
@@ -543,7 +542,6 @@ public class RTESampler extends AbstractSampler implements ThreadListener,
       }
       if (client == null) {
         client = buildClient();
-        configureClient(client);
         resultBuilder.withConnectEndNow();
         if (getAction() == Action.SEND_INPUT) {
           client.await(Collections
@@ -585,18 +583,6 @@ public class RTESampler extends AbstractSampler implements ThreadListener,
           .build();
     }
     return resultBuilder.build();
-  }
-
-  private void configureClient(RteProtocolClient client) throws RteIOException {
-    if (client == null) {
-      return;
-    }
-    if (useSsh()) {
-      client.configureSecureClient(getTerminalType(), getSshUsername(), getSshPassword(),
-          getServer());
-    } else {
-      client.configureClient(getTerminalType(), getSSLType(), getServer());
-    }
   }
 
   private void configureWaitForDisconnect(RteProtocolClient client) {
@@ -660,6 +646,18 @@ public class RTESampler extends AbstractSampler implements ThreadListener,
     client.connect(getServer(), getPort(), getSSLType(), getTerminalType(), getConnectionTimeout());
     CONNECTIONS.get().put(buildConnectionId(), client);
     return client;
+  }
+
+  private void configureClient(RteProtocolClient client) throws RteIOException {
+    if (client == null) {
+      return;
+    }
+    if (useSsh()) {
+      client.configureSecureClient(getTerminalType(), getSshUsername(), getSshPassword(),
+          getServer());
+    } else {
+      client.configureClient(getTerminalType(), getSSLType(), getServer());
+    }
   }
 
   private List<Input> getInputs() {

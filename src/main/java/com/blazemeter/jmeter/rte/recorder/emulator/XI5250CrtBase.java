@@ -166,10 +166,11 @@ public abstract class XI5250CrtBase<T extends RteProtocolClient> extends XI5250C
   */
 
   protected boolean isAnyKeyPressedOrControlKeyReleasedAndNotCopy(KeyEvent e) {
-    return (e.getID() == KeyEvent.KEY_RELEASED
-        && e.getKeyCode() == getKeyCodeFromKeyMask(getMenuShortcutKeyMask()) && !copyPaste)
-        || (e.getID() == KeyEvent.KEY_PRESSED && e.getKeyCode() != getKeyCodeFromKeyMask(
-        getMenuShortcutKeyMask()));
+    int keyCodeFromKeyMask = getKeyCodeFromKeyMask(getMenuShortcutKeyMask());
+    int eventId = e.getID();
+    int keyCode = e.getKeyCode();
+    return (eventId == KeyEvent.KEY_RELEASED && keyCode == keyCodeFromKeyMask && !copyPaste)
+        || (eventId == KeyEvent.KEY_PRESSED && keyCode != keyCodeFromKeyMask);
   }
 
   protected void showUserMessage(String msg) {

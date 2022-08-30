@@ -35,5 +35,6 @@ public enum AttentionKey {
   PA1,
   PA2,
   PA3,
-  BACKSPACE;
+  BACKSPACE,
+  SHIFT_TAB,
 }

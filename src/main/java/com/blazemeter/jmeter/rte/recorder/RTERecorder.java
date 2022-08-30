@@ -521,7 +521,7 @@ public class RTERecorder extends GenericController implements TerminalEmulatorLi
 
   @Override
   public void onRecordingStop() {
-    LOG.debug("Stopping recording");
+    LOG.info("Stopping recording");
     connectionExecutor.shutdownNow();
     synchronized (this) {
       if (terminalEmulator != null) {

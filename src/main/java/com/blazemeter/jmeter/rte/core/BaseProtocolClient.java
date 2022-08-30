@@ -42,11 +42,21 @@ public abstract class BaseProtocolClient implements RteProtocolClient {
   @Override
   public void send(List<Input> input, AttentionKey attentionKey, long echoTimeoutMillis)
       throws RteIOException {
-    LOG.debug("Sending the following inputs: {}.", input);
+    LOG.info("Sending the following inputs: {}.", input);
+    //Delay to give time to the server to answer
+    printAndSleep(1500);
     exceptionHandler.throwAnyPendingError();
     input.forEach(i -> setField(i, echoTimeoutMillis));
     sendAttentionKey(attentionKey);
     exceptionHandler.throwAnyPendingError();
+  }
+
+  private void printAndSleep(int time) {
+    try {
+      Thread.sleep(time);
+    } catch (InterruptedException e) {
+      e.printStackTrace();
+    }
   }
 
   protected abstract void setField(Input input, long echoTimeoutMillis);

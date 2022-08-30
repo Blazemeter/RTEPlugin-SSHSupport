@@ -105,6 +105,8 @@ public class Vt420Client extends BaseProtocolClient implements CharacterBasedPro
         put(AttentionKey.ROLL_UP, "\033[5~");
         put(AttentionKey.ROLL_DN, "\033[6~");
         put(AttentionKey.BACKSPACE, "\b");
+        put(AttentionKey.ATTN, "\033");
+        put(AttentionKey.CLEAR, "\033");
       }
     };
   }
@@ -115,7 +117,7 @@ public class Vt420Client extends BaseProtocolClient implements CharacterBasedPro
       NavigationInput navigationInput = (NavigationInput) input;
       NavigationType navigationType = navigationInput.getNavigationType();
       if (NAVIGATION_KEYS.get(navigationType) != null) {
-        processArrowKey(echoTimeoutMillis, navigationInput);
+        processInput(echoTimeoutMillis, navigationInput);
       } else {
         LOG.error("Navigation type {} not supported", navigationType);
         throw new IllegalArgumentException("Navigation type not supported");
@@ -140,6 +142,8 @@ public class Vt420Client extends BaseProtocolClient implements CharacterBasedPro
     try {
       for (String character : text) {
         client.sendTextByCurrentCursorPosition(character);
+        semaphore.release();
+        Thread.sleep(100);
         if (!semaphore.tryAcquire(timeout, TimeUnit.MILLISECONDS)) {
           exceptionHandler.setPendingError(
               new TimeoutException(
@@ -160,12 +164,13 @@ public class Vt420Client extends BaseProtocolClient implements CharacterBasedPro
     client.removeScreenChangeListener(listener);
   }
 
-  private void processArrowKey(long echoTimeoutMillis, NavigationInput navigationInput) {
+  private void processInput(long echoTimeoutMillis, NavigationInput navigationInput) {
     List<String> input = new ArrayList<>();
     IntStream.range(0, navigationInput.getRepeat())
         .forEach(e -> input.add(NAVIGATION_KEYS.get(navigationInput.getNavigationType())));
-    LOG.info("Sending arrow key {}", navigationInput);
+    LOG.info("Sending input {}", navigationInput);
     input.addAll(textToList(navigationInput.getInput()));
+    System.out.println(">>> RTE + processInputs " + input.toString());
     sendCharacterByOneAtATime(input, echoTimeoutMillis);
   }
 

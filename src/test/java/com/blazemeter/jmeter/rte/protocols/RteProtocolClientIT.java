@@ -98,6 +98,7 @@ public abstract class RteProtocolClientIT<T extends RteProtocolClient> {
   protected void loadFlow(String flowFile) throws FileNotFoundException {
     File file = new File(findResource(flowFile).getFile());
     server.setFlow(Flow.fromYml(file));
+    System.out.println("Loaded flow " + flowFile);
   }
 
   protected URL findResource(String file) {
