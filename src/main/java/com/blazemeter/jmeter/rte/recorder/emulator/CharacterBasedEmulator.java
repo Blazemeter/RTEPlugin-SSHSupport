@@ -280,6 +280,12 @@ public class CharacterBasedEmulator extends
         return " ";
       case KeyEvent.VK_BACK_SPACE:
         return Vt420Client.ATTENTION_KEYS.get(AttentionKey.BACKSPACE);
+      case KeyEvent.VK_HOME:
+        return Vt420Client.ATTENTION_KEYS.get(AttentionKey.HOME);
+      case KeyEvent.VK_END:
+        return Vt420Client.ATTENTION_KEYS.get(AttentionKey.END);
+      case KeyEvent.VK_INSERT:
+        return Vt420Client.ATTENTION_KEYS.get(AttentionKey.INSERT);
       default:
         char keyChar = e.getKeyChar();
         if (Character.isAlphabetic(keyChar)) {

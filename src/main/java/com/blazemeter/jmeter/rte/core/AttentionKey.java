@@ -37,4 +37,7 @@ public enum AttentionKey {
   PA3,
   BACKSPACE,
   SHIFT_TAB,
+  HOME,
+  END,
+  INSERT
 }

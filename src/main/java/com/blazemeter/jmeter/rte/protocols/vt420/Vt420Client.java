@@ -107,6 +107,9 @@ public class Vt420Client extends BaseProtocolClient implements CharacterBasedPro
         put(AttentionKey.BACKSPACE, "\b");
         put(AttentionKey.ATTN, "\033");
         put(AttentionKey.CLEAR, "\033");
+        put(AttentionKey.HOME, "\033[H");
+        put(AttentionKey.END, "\033[Y");
+        put(AttentionKey.INSERT, "\033[@");
       }
     };
   }

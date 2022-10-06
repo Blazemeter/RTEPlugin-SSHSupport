@@ -71,6 +71,9 @@ public abstract class XI5250CrtBase<T extends RteProtocolClient> extends XI5250C
           put(new KeyEventMap(KeyEvent.ALT_MASK, KeyEvent.VK_INSERT), AttentionKey.PA1);
           put(new KeyEventMap(KeyEvent.ALT_MASK, KeyEvent.VK_HOME), AttentionKey.PA2);
           put(new KeyEventMap(KeyEvent.SHIFT_MASK, KeyEvent.VK_PAGE_UP), AttentionKey.PA3);
+          put(new KeyEventMap(0, KeyEvent.VK_HOME), AttentionKey.HOME);
+          put(new KeyEventMap(0, KeyEvent.VK_END), AttentionKey.END);
+          put(new KeyEventMap(0, KeyEvent.VK_INSERT), AttentionKey.INSERT);
         }
       };
   private static final Logger LOG = LoggerFactory.getLogger(XI5250CrtBase.class);
