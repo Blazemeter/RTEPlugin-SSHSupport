@@ -3,12 +3,14 @@ package com.blazemeter.jmeter.rte.recorder.emulator;
 import com.blazemeter.jmeter.rte.core.AttentionKey;
 import com.blazemeter.jmeter.rte.core.CharacterBasedProtocolClient;
 import com.blazemeter.jmeter.rte.core.Input;
+import com.blazemeter.jmeter.rte.core.NavigationInput;
 import com.blazemeter.jmeter.rte.core.NavigationInput.NavigationInputBuilder;
 import com.blazemeter.jmeter.rte.core.Position;
 import com.blazemeter.jmeter.rte.core.Screen;
 import com.blazemeter.jmeter.rte.core.Segment;
 import com.blazemeter.jmeter.rte.protocols.vt420.Vt420Client;
 import com.blazemeter.jmeter.rte.sampler.NavigationType;
+import com.helger.commons.annotation.VisibleForTesting;
 import java.awt.Dimension;
 import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.DataFlavor;
@@ -41,7 +43,6 @@ public class CharacterBasedEmulator extends
   private int pastingCharactersCount = 0;
   private int pastedCharactersCount = 0;
   private NavigationInputBuilder currentInput = new NavigationInputBuilder();
-  private boolean controlModifierOn = false;
 
   public CharacterBasedEmulator() {
     attributeTranslator = new AttributeTranslator(getCrtBuffer()) {
@@ -55,57 +56,70 @@ public class CharacterBasedEmulator extends
 
   @Override
   protected synchronized void processKeyEvent(KeyEvent e) {
-    if (e.getID() == KeyEvent.KEY_PRESSED) {
-      LOG.info("Processing key: ({})", e);
-    }
-
-    processCopyOrPaste(e);
-    if (!isAnyKeyPressedOrControlKeyReleasedAndNotCopy(e)) {
+    if (isKeyPressed(e)) {
+      LOG.info("[SKIP][KEY_RELEASED]: {}", e);
       return;
     }
 
-    int pressedKeyCode = e.getKeyCode();
-    int modifierId = e.getModifiers();
-    if (Character.isISOControl(e.getKeyChar())) {
-      controlModifierOn = true;
+    //We use the extended key code to avoid problems with international keyboards
+    AttentionKey attentionKey = KEY_EVENTS.get(new KeyEventMap(e.getModifiers(),
+        e.getExtendedKeyCode()));
+    LOG.info("[ATTN_KEY] '{}'. Event {}", attentionKey, e);
+
+    if (attentionKey == null && isKeyReleased(e)) {
+      LOG.info("[SKIP][Released Attention Key]: {}", e);
+      return;
     }
 
-    AttentionKey attentionKey = KEY_EVENTS.get(new KeyEventMap(modifierId, pressedKeyCode));
-    LOG.info("= Key Code {}. Modifier {}. Attention key: ({})",
-        pressedKeyCode, modifierId, attentionKey);
-    if ((attentionKey == null && !locked)) {
-      if (pressedKeyCode == KeyEvent.VK_SHIFT
-          || pressedKeyCode == KeyEvent.VK_META
-          || pressedKeyCode == KeyEvent.KEY_LOCATION_UNKNOWN
-          || copyPaste) {
-        copyPaste = false;
-        return;
-      }
+    if (attentionKey != null && isKeyTyped(e)) {
+      LOG.info("[SKIP][Typed Attention Keu]: {}", e);
+      return;
+    }
 
-      lockEmulator(true);
-      currentSwingWorker = buildSwingWorker(e); //Aqui es que se genera el texto
-      currentSwingWorker.execute();
+    /*
+    * At this point we are:
+    * - Processing Key Typed (The final result of the combination of keys)
+    * - Processing Key Released (For Attention Keys/Function Key that do not generate text)
+    * - Ignoring Key Pressed
+    */
 
-      if (controlModifierOn) {
-        controlModifierOn = false;
-        lockEmulator(false);
-      }
+    if (attentionKey == null && !locked) {
+      sendToTheServer(e);
+      lockEmulator(false, "After sending the key to the server = " + e);
     } else if (attentionKey != null) {
-      if (isAttentionKeyValid(attentionKey)) {
-        lockEmulator(true);
-        lastCursorPosition = getCursorPosition();
-        processAttentionKey(e, attentionKey);
-        lastTerminalScreen = new Screen(currentScreen);
-      } else if (attentionKey == AttentionKey.RESET) {
-        LOG.info("Detected a Control Key being pressed");
-        controlModifierOn = true;
-      } else {
-        LOG.info("Attention key ignored. Value='{}'", attentionKey);
-        e.consume();
-      }
+      handleAttentionKey(e, attentionKey);
     } else {
-      LOG.info("= Key event ignored. Value='{}'", e);
-      controlModifierOn = false;
+      handleForcedChar(e);
+    }
+  }
+
+  private void sendToTheServer(KeyEvent e) {
+    lockEmulator(true, "Before sending key");
+    LOG.info("[SENDING] Event: '{}'", e);
+    currentSwingWorker = sendKeyEvent(e);
+    currentSwingWorker.execute();
+  }
+
+  private void handleForcedChar(KeyEvent e) {
+    LOG.info("[FORCED] Sending key '{}'", e.getKeyChar());
+    currentSwingWorker = sendKeyEvent(e); //Aqui es que se genera el texto
+    currentSwingWorker.execute();
+    lockEmulator(false, "Forced");
+    e.consume();
+  }
+
+  private void handleAttentionKey(KeyEvent e, AttentionKey attentionKey) {
+    if (isAttentionKeyValid(attentionKey)) {
+      lastCursorPosition = getCursorPosition();
+      lockEmulator(true, "Processing attention key " + attentionKey);
+      processAttentionKey(e, attentionKey);
+      lastTerminalScreen = new Screen(currentScreen);
+    } else if (attentionKey == AttentionKey.RESET) {
+      LOG.info("[CONTROL] Control key pressed. Waiting for the following key.");
+      e.consume();
+    } else {
+      LOG.info("[ATTN KEY IGNORED]. Value='{}'", attentionKey);
+      e.consume();
     }
   }
 
@@ -120,7 +134,7 @@ public class CharacterBasedEmulator extends
     return inputs;
   }
 
-  private SwingWorker<Object, Object> buildSwingWorker(KeyEvent e) {
+  private SwingWorker<Object, Object> sendKeyEvent(KeyEvent e) {
     return new SwingWorker<Object, Object>() {
       @Override
       protected Object doInBackground() {
@@ -165,10 +179,11 @@ public class CharacterBasedEmulator extends
     }
     pastingCharactersCount = value.length();
     pastedCharactersCount = 0;
-    lockEmulator(true);
+    lockEmulator(true, "Line 190. Prior making paste.");
     currentSwingWorker = new SwingWorker<Object, Object>() {
       @Override
       protected Object doInBackground() {
+        LOG.info("[PASTING]: '{}'", value);
         Arrays.stream(value.split(""))
             .forEach(c -> recordInput(c));
         return null;
@@ -177,7 +192,8 @@ public class CharacterBasedEmulator extends
     currentSwingWorker.execute();
   }
 
-  private void lockEmulator(boolean isLock) {
+  private void lockEmulator(boolean isLock, String source) {
+    LOG.info("LockEmulator {}. Source {}", isLock, source);
     setKeyboardLock(isLock);
     setCursorVisible(!isLock);
     pasteConsumer.accept(!isLock);
@@ -190,28 +206,51 @@ public class CharacterBasedEmulator extends
 
   private void recordInput(String value) {
     Position cursorPosition = getCursorPosition();
-    LOG.info("Position '{}'. Recording input '{}'", cursorPosition, value);
+    LOG.info("[RECORDING] Sending Value: '{}'. Cursor position: '{}'", value, cursorPosition);
     terminalClient.send(value);
-    if (validInput(cursorPosition)) {
-      Optional<NavigationType> navigationKey = Arrays.stream(NavigationType.values())
-          .filter(v -> Vt420Client.NAVIGATION_KEYS.get(v).equals(value))
-          .findFirst();
+    boolean validInput = validInput(cursorPosition);
+
+    if (validInput) {
+      String unicodeString = value;
+      if (CommandUtils.isControlCode(value)) {
+        unicodeString = CommandUtils.getUnicodeString(value);
+        LOG.info("[RECORDING][UNICODE] Value parsed to '{}'", unicodeString);
+      }
+
+      Optional<NavigationType> navigationKey = getNavigationType(value);
       if (navigationKey.isPresent()) {
-        LOG.debug("Navigation key detected: '{}'", navigationKey.get());
+        LOG.info("[RECORDING][NAV] Navigation key detected: '{}'. CurrentInput='{}'",
+            navigationKey.get(), currentInput);
         buildNavigationInput(navigationKey.get());
       } else {
+        LOG.info("[RECORDING][NO_NAV] No navigation key detected.");
         if (lastCursorPosition != null
             && !lastCursorPosition.isConsecutiveWith(cursorPosition)
             && inputBuffer.length() != 0) {
+          LOG.info("[RECORDING][NO_NAV] CurrentInput='{}'. ", currentInput);
           buildDefaultInputWhenNoNavigationType();
           insertCurrentInput();
           currentInput.withNavigationType(NavigationType.TAB);
+          LOG.info("[RECORDING][NO_NAV] Build. CurrentInput={}", currentInput);
+        } else {
+          LOG.info("[RECORDING][NO_NAV] No build. Current input '{}'.", currentInput);
         }
         inputBuffer.append(value);
       }
+    } else {
+      LOG.warn("[RECORDING_INPUT]. Apparently, the input is invalid. Value= {}, Position={}",
+          value, cursorPosition);
     }
+
     lastCursorPosition = new Position(cursorPosition);
     lastTerminalScreen = new Screen(currentScreen);
+  }
+
+  private Optional<NavigationType> getNavigationType(String finalValue) {
+    Optional<NavigationType> navigationKey = Arrays.stream(NavigationType.values())
+        .filter(v -> Vt420Client.NAVIGATION_KEYS.get(v).equals(finalValue))
+        .findFirst();
+    return navigationKey;
   }
 
   private void buildNavigationInput(NavigationType type) {
@@ -229,6 +268,7 @@ public class CharacterBasedEmulator extends
   }
 
   private void buildDefaultInputWhenNoNavigationType() {
+    LOG.info("[BUILD] Default input when no navigation type");
     if (currentInput.getNavigationType() == null) {
       currentInput = new NavigationInputBuilder()
           .withRepeat(repetition)
@@ -237,7 +277,13 @@ public class CharacterBasedEmulator extends
   }
 
   private void insertCurrentInput() {
-    inputs.add(currentInput.withInput(inputBuffer.toString()).build());
+    String val = inputBuffer.toString();
+    if (CommandUtils.isControlCode(inputBuffer.toString())) {
+      val = CommandUtils.getUnicodeString(inputBuffer.toString());
+    }
+
+    NavigationInput build = currentInput.withInput(val).build();
+    inputs.add(build);
     currentInput = new NavigationInputBuilder();
     inputBuffer = new StringBuilder();
     repetition = 0;
@@ -262,9 +308,6 @@ public class CharacterBasedEmulator extends
 
   private String getKeyString(KeyEvent e) {
     int keyCode = e.getKeyCode();
-    int modifier = e.getModifiers();
-    LOG.info("KeyCode {}. KeyEvent.getKeyModifiersText(modifier) '{}' (getKeyString)", keyCode,
-        KeyEvent.getKeyModifiersText(modifier));
     switch (keyCode) {
       case KeyEvent.VK_TAB:
         return Vt420Client.NAVIGATION_KEYS.get(NavigationType.TAB);
@@ -287,16 +330,7 @@ public class CharacterBasedEmulator extends
       case KeyEvent.VK_INSERT:
         return Vt420Client.ATTENTION_KEYS.get(AttentionKey.INSERT);
       default:
-        char keyChar = e.getKeyChar();
-        if (Character.isAlphabetic(keyChar)) {
-          String text = KeyEvent.getKeyText(keyCode);
-          /*
-          * Modifier 1 is Shift, and we force the Upper or Lower case since
-          * KeyEvent.getKeyModifiersText sometimes does not return the Mod Text
-          */
-          return modifier == 1 ? text.toUpperCase() : text.toLowerCase();
-        }
-        return keyChar + "";
+        return String.valueOf(e.getKeyChar());
     }
   }
 
@@ -304,13 +338,14 @@ public class CharacterBasedEmulator extends
   public synchronized void screenChanged(String s) {
     currentScreen = Screen.buildScreenFromText(s, new Dimension(80, 24));
     if (pastingCharactersCount == 0) {
-      lockEmulator(false);
-    } else if (++pastedCharactersCount == pastingCharactersCount) {
-      lockEmulator(false);
+      lockEmulator(false, "screenChanged. Pasting characters count is 0");
+    } else if (++pastedCharactersCount == (pastingCharactersCount - 1)) {
+      lockEmulator(false, "screenChanged. Pasted characters count is " + pastedCharactersCount);
       pastingCharactersCount = 0;
     }
   }
 
+  @VisibleForTesting
   public void setKeyboardStatus(boolean isLock) {
     locked = isLock;
     statusPanel.setKeyboardStatus(isLock);
@@ -352,5 +387,4 @@ public class CharacterBasedEmulator extends
     }
     super.processMouseMotionEvent(e);
   }
-
 }

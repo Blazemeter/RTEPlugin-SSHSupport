@@ -55,15 +55,18 @@
     <dependency>
       <groupId>org.apache.sshd</groupId>
       <artifactId>sshd-cli</artifactId>
-      <version>2.5.1</version>
+      <version>2.8.0</version>
     </dependency>
     <dependency>
       <groupId>org.apache.sshd</groupId>
       <artifactId>sshd-core</artifactId>
-      <version>2.5.1</version>
-      <scope>test</scope>
+      <version>2.8.0</version>
     </dependency>
-
+    <dependency>
+      <groupId>org.apache.sshd</groupId>
+      <artifactId>sshd-common</artifactId>
+      <version>2.8.0</version>
+    </dependency>
     <dependency>
       <groupId>org.apache.jmeter</groupId>
       <artifactId>ApacheJMeter_core</artifactId>
@@ -173,12 +176,6 @@
       <artifactId>jackson-databind</artifactId>
       <version>2.12.0</version>
       <scope>provided</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.sshd</groupId>
-      <artifactId>sshd-core</artifactId>
-      <version>2.5.1</version>
-      <scope>compile</scope>
     </dependency>
   </dependencies>
 
@@ -295,7 +292,7 @@
             </goals>
             <configuration>
               <includeArtifactIds>
-                wiresham,guava,snakeyaml,jackson-databind,jackson-core,jackson-annotations,xtn5250,dm3270-lib,pcap4j-core,jVT220, sshd-cli, sshd-core, jmeter-bzm-commons
+                wiresham,guava,snakeyaml,jackson-databind,jackson-core,jackson-annotations,xtn5250,dm3270-lib,pcap4j-core,jVT220, sshd-cli, sshd-core, sshd-common, jmeter-bzm-commons
               </includeArtifactIds>
               <outputDirectory>${project.build.directory}/jmeter-test/lib</outputDirectory>
 <!--              <stripVersion>true</stripVersion>-->

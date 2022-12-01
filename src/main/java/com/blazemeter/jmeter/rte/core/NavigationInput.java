@@ -134,5 +134,13 @@ public class NavigationInput extends Input {
     public NavigationType getNavigationType() {
       return navigationType;
     }
+
+    @Override
+    public String toString() {
+      return "{ input='" + input + '\'' +
+          ", repeat=" + repeat +
+          ", navigationType=" + navigationType +
+          '}';
+    }
   }
 }

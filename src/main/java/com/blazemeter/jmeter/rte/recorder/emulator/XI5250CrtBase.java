@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import javax.swing.JOptionPane;
 import net.infordata.em.crt.XICrtBuffer;
@@ -74,6 +75,8 @@ public abstract class XI5250CrtBase<T extends RteProtocolClient> extends XI5250C
           put(new KeyEventMap(0, KeyEvent.VK_HOME), AttentionKey.HOME);
           put(new KeyEventMap(0, KeyEvent.VK_END), AttentionKey.END);
           put(new KeyEventMap(0, KeyEvent.VK_INSERT), AttentionKey.INSERT);
+          //ADD SHIFT+TAB for AT386
+          put(new KeyEventMap(KeyEvent.SHIFT_MASK, KeyEvent.VK_TAB), AttentionKey.SHIFT_TAB);
         }
       };
   private static final Logger LOG = LoggerFactory.getLogger(XI5250CrtBase.class);
@@ -81,6 +84,7 @@ public abstract class XI5250CrtBase<T extends RteProtocolClient> extends XI5250C
   protected T terminalClient;
   protected StatusPanel statusPanel;
   protected boolean locked = false;
+  protected AtomicBoolean atomicLocked = new AtomicBoolean(false);
   protected boolean copyPaste = false;
   protected Consumer<Boolean> pasteConsumer;
   protected AttributeTranslator attributeTranslator;
@@ -124,31 +128,26 @@ public abstract class XI5250CrtBase<T extends RteProtocolClient> extends XI5250C
   }
 
   protected void processAttentionKey(KeyEvent e, AttentionKey attentionKey) {
-    if (isAttentionKeyValid(attentionKey)) {
-      List<Input> fields = getInputFields();
-      for (TerminalEmulatorListener listener : terminalEmulatorListeners) {
-        setKeyboardLock(true);
-        listener.onAttentionKey(attentionKey, fields, sampleName);
-      }
-    } else {
-      showUserMessage(attentionKey + " not supported for current protocol");
-      e.consume();
+    List<Input> fields = getInputFields();
+    for (TerminalEmulatorListener listener : terminalEmulatorListeners) {
+      setKeyboardLock(true);
+      listener.onAttentionKey(attentionKey, fields, sampleName);
     }
-
   }
 
-  protected void processCopyOrPaste(KeyEvent e) {
-    if (e.getID() == KeyEvent.KEY_PRESSED && e.getKeyCode() == KeyEvent.VK_C
+  private void processCopyOrPaste(KeyEvent e) {
+    LOG.info("[COPY PASTE?] {}", copyPaste);
+    if (isKeyPressed(e) && e.getKeyCode() == KeyEvent.VK_C
         && e.getModifiers() == getMenuShortcutKeyMask()) {
       doCopy();
       e.consume();
       copyPaste = true;
-    } else if (e.getID() == KeyEvent.KEY_PRESSED && e.getKeyCode() == KeyEvent.VK_V
+    } else if (isKeyPressed(e) && e.getKeyCode() == KeyEvent.VK_V
         && e.getModifiers() == getMenuShortcutKeyMask() && !locked) {
       makePaste();
       e.consume();
       copyPaste = true;
-    } else if (e.getID() == KeyEvent.KEY_RELEASED &&
+    } else if (isKeyReleased(e) &&
         e.getKeyCode() == getKeyCodeFromKeyMask(getMenuShortcutKeyMask()) && copyPaste) {
       copyPaste = false;
     }
@@ -170,10 +169,31 @@ public abstract class XI5250CrtBase<T extends RteProtocolClient> extends XI5250C
 
   protected boolean isAnyKeyPressedOrControlKeyReleasedAndNotCopy(KeyEvent e) {
     int keyCodeFromKeyMask = getKeyCodeFromKeyMask(getMenuShortcutKeyMask());
-    int eventId = e.getID();
     int keyCode = e.getKeyCode();
-    return (eventId == KeyEvent.KEY_RELEASED && keyCode == keyCodeFromKeyMask && !copyPaste)
-        || (eventId == KeyEvent.KEY_PRESSED && keyCode != keyCodeFromKeyMask);
+
+    if (isKeyReleased(e) && keyCode == keyCodeFromKeyMask && !copyPaste) {
+      LOG.info("Is reason 1");
+      return true;
+    }
+
+    if (isKeyPressed(e) && keyCode != keyCodeFromKeyMask) {
+      LOG.info("Is reason 2");
+      return true;
+    }
+
+    return false;
+  }
+
+  protected boolean isKeyReleased(KeyEvent e) {
+    return e.getID() == KeyEvent.KEY_RELEASED;
+  }
+
+  protected boolean isKeyPressed(KeyEvent e) {
+    return e.getID() == KeyEvent.KEY_PRESSED;
+  }
+
+  protected boolean isKeyTyped(KeyEvent e) {
+    return e.getID() == KeyEvent.KEY_TYPED;
   }
 
   protected void showUserMessage(String msg) {

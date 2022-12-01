@@ -55,6 +55,7 @@ public class Vt420Client extends BaseProtocolClient implements CharacterBasedPro
 
   public static final Map<NavigationType, String> NAVIGATION_KEYS = buildNavigationKeysMapping();
   public static final Map<AttentionKey, String> ATTENTION_KEYS = buildAttKeysMapping();
+  public static final Map<AttentionKey, String> CUSTOM_ATTENTION_KEYS = loadCustomAttKeysMapping();
   public static final Dimension SCREEN_SIZE = new Dimension(80, 24);
   public static final TerminalType TERMINAL_TYPE = new TerminalType("VT420-7", SCREEN_SIZE);
   private static final Logger LOG = LoggerFactory.getLogger(Vt420Client.class);
@@ -104,6 +105,37 @@ public class Vt420Client extends BaseProtocolClient implements CharacterBasedPro
         put(AttentionKey.F24, "\033[38~");
         put(AttentionKey.ROLL_UP, "\033[5~");
         put(AttentionKey.ROLL_DN, "\033[6~");
+        put(AttentionKey.BACKSPACE, "\b");
+        put(AttentionKey.ATTN, "\033");
+        put(AttentionKey.CLEAR, "\033");
+        put(AttentionKey.HOME, "\033[H");
+        put(AttentionKey.END, "\033[Y");
+        put(AttentionKey.INSERT, "\033[@");
+      }
+    };
+  }
+
+  private static EnumMap<AttentionKey, String> loadCustomAttKeysMapping() {
+    return new EnumMap<AttentionKey, String>(AttentionKey.class) {
+      {
+        put(AttentionKey.ENTER, "\r");
+        put(AttentionKey.F1, "\033OP");
+        put(AttentionKey.F2, "\033OQ");
+        put(AttentionKey.F3, "\033OR");
+        put(AttentionKey.F4, "\033OS");
+        put(AttentionKey.F5, "\033OT");
+        put(AttentionKey.F6, "\033OU");
+        put(AttentionKey.F7, "\033OV");
+        put(AttentionKey.F8, "\033OW");
+        put(AttentionKey.F9, "\033OX");
+        put(AttentionKey.F10, "\033OY");
+        put(AttentionKey.F11, "\033Op");
+        put(AttentionKey.F12, "\033Oq");
+        put(AttentionKey.F13, "\033OB");
+        put(AttentionKey.F14, "\033Os");
+        put(AttentionKey.F15, "\033Ot");
+        put(AttentionKey.ROLL_UP, "\033[V");
+        put(AttentionKey.ROLL_DN, "\033[U");
         put(AttentionKey.BACKSPACE, "\b");
         put(AttentionKey.ATTN, "\033");
         put(AttentionKey.CLEAR, "\033");
@@ -171,19 +203,28 @@ public class Vt420Client extends BaseProtocolClient implements CharacterBasedPro
     List<String> input = new ArrayList<>();
     IntStream.range(0, navigationInput.getRepeat())
         .forEach(e -> input.add(NAVIGATION_KEYS.get(navigationInput.getNavigationType())));
-    LOG.info("Sending input {}", navigationInput);
     input.addAll(textToList(navigationInput.getInput()));
-    System.out.println(">>> RTE + processInputs " + input.toString());
+    LOG.info("[SENDING][NAVIGATION] '{}'. Inputs={}", navigationInput, input);
     sendCharacterByOneAtATime(input, echoTimeoutMillis);
   }
 
   protected void sendAttentionKey(AttentionKey attentionKey) {
+    String customAttention = CUSTOM_ATTENTION_KEYS.get(attentionKey);
+    if (customAttention != null && !customAttention.isEmpty()) {
+      sendResolvedAttentionKey(customAttention);
+      return;
+    }
+
+    LOG.info("No custom attention key detected for {}", attentionKey);
     String input = ATTENTION_KEYS.get(attentionKey);
-    LOG.info("Sending attention key {}", attentionKey);
     if (input == null) {
       throw new UnsupportedOperationException(
           attentionKey.name() + " attentionKey is unsupported for protocol VT420.");
     }
+  }
+
+  private void sendResolvedAttentionKey(String input) {
+    LOG.info("Text sent '{}' (length={})", input, input.length());
     try {
       client.sendTextByCurrentCursorPosition(input);
     } catch (IOException e) {

@@ -1,6 +1,7 @@
 package com.blazemeter.jmeter.rte.sampler;
 
 import com.blazemeter.jmeter.rte.core.Input;
+import com.blazemeter.jmeter.rte.recorder.emulator.CommandUtils;
 import java.io.Serializable;
 import org.apache.jmeter.testelement.AbstractTestElement;
 import org.apache.jmeter.testelement.property.StringProperty;
@@ -22,6 +23,13 @@ public abstract class InputTestElement extends AbstractTestElement implements Se
     versions
      */
     String val = getPropertyAsString(INPUT, "");
+    // If the input is a control character, we parse the string representation into a character
+    if (!val.isEmpty() && CommandUtils.isControlUnicode(val)) {
+      val = CommandUtils.getCharFromUnicodeString(val) + "";
+      System.out.println(">>>> ITS CONTROL CODE=" + CommandUtils.getUnicodeString(val));
+    }
+
+    System.out.println(">>> InputTestElement.getInput() val = " + val);
     return val == null ? getPropertyAsString("CoordInputRowGUI.input") : val;
   }
 
