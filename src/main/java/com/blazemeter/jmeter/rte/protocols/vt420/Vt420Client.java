@@ -118,7 +118,7 @@ public class Vt420Client extends BaseProtocolClient implements CharacterBasedPro
   private static EnumMap<AttentionKey, String> loadCustomAttKeysMapping() {
     return new EnumMap<AttentionKey, String>(AttentionKey.class) {
       {
-        put(AttentionKey.ENTER, "\r");
+        put(AttentionKey.ENTER, "\n");
         put(AttentionKey.F1, "\033OP");
         put(AttentionKey.F2, "\033OQ");
         put(AttentionKey.F3, "\033OR");
@@ -376,7 +376,7 @@ public class Vt420Client extends BaseProtocolClient implements CharacterBasedPro
 
   @Override
   public Set<AttentionKey> getSupportedAttentionKeys() {
-    return ATTENTION_KEYS.keySet();
+    return CUSTOM_ATTENTION_KEYS.keySet();
   }
 
   @Override
