@@ -66,7 +66,7 @@ public class CharacterBasedEmulator extends
         e.getExtendedKeyCode()));
     LOG.info("[ATTN_KEY] '{}'. Event {}", attentionKey, e);
 
-    if (attentionKey == null && isKeyReleased(e)) {
+    if (attentionKey == null && isKeyReleased(e) && !isNavigationKey(e)) {
       LOG.info("[SKIP][Released Attention Key]: {}", e);
       return;
     }
@@ -77,11 +77,11 @@ public class CharacterBasedEmulator extends
     }
 
     /*
-    * At this point we are:
-    * - Processing Key Typed (The final result of the combination of keys)
-    * - Processing Key Released (For Attention Keys/Function Key that do not generate text)
-    * - Ignoring Key Pressed
-    */
+     * At this point we are:
+     * - Processing Key Typed (The final result of the combination of keys)
+     * - Processing Key Released (For Attention Keys/Function Key that do not generate text)
+     * - Ignoring Key Pressed
+     */
 
     if (attentionKey == null && !locked) {
       sendToTheServer(e);
@@ -91,6 +91,14 @@ public class CharacterBasedEmulator extends
     } else {
       handleForcedChar(e);
     }
+  }
+
+  private boolean isNavigationKey(KeyEvent e) {
+    return Arrays.asList(
+            KeyEvent.VK_TAB, KeyEvent.VK_DOWN,
+            KeyEvent.VK_UP, KeyEvent.VK_LEFT,
+            KeyEvent.VK_RIGHT)
+        .contains(e.getKeyCode());
   }
 
   private void sendToTheServer(KeyEvent e) {
@@ -221,7 +229,12 @@ public class CharacterBasedEmulator extends
       if (navigationKey.isPresent()) {
         LOG.info("[RECORDING][NAV] Navigation key detected: '{}'. CurrentInput='{}'",
             navigationKey.get(), currentInput);
-        buildNavigationInput(navigationKey.get());
+        if (currentInput.isVoid()) {
+          buildNavigationInput(navigationKey.get());
+        } else {
+          insertCurrentInput();
+          buildNavigationInput(navigationKey.get());
+        }
       } else {
         LOG.info("[RECORDING][NO_NAV] No navigation key detected.");
         if (lastCursorPosition != null
@@ -353,6 +366,10 @@ public class CharacterBasedEmulator extends
 
   @Override
   public synchronized void teardown() {
+    if (!currentInput.isVoid()) {
+      insertCurrentInput();
+    }
+    currentInput = new NavigationInputBuilder();
     lastTerminalScreen = null;
     lastCursorPosition = null;
     currentScreen = null;
