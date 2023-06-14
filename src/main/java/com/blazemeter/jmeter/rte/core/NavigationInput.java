@@ -135,6 +135,10 @@ public class NavigationInput extends Input {
       return navigationType;
     }
 
+    public boolean isVoid() {
+      return input == null && navigationType == null;
+    }
+
     @Override
     public String toString() {
       return "{ input='" + input + '\'' +

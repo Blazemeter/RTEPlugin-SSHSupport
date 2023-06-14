@@ -29,7 +29,6 @@ public abstract class InputTestElement extends AbstractTestElement implements Se
       System.out.println(">>>> ITS CONTROL CODE=" + CommandUtils.getUnicodeString(val));
     }
 
-    System.out.println(">>> InputTestElement.getInput() val = " + val);
     return val == null ? getPropertyAsString("CoordInputRowGUI.input") : val;
   }
 
