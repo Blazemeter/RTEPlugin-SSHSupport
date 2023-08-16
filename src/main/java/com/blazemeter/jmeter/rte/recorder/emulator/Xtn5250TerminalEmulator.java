@@ -239,7 +239,7 @@ public class Xtn5250TerminalEmulator extends JFrame implements TerminalEmulator 
   @Override
   public void setScreen(Screen screen) {
     /*
-    setScreen delegated to XI5250CrtBase in order to proper synchronize setScreen, 
+    setScreen delegated to XI5250CrtBase in order to proper synchronize setScreen,
     paintComponent and processKeyEvent methods.
     */
     xi5250Crt.setScreen(screen, shownCredentials);
@@ -405,7 +405,7 @@ public class Xtn5250TerminalEmulator extends JFrame implements TerminalEmulator 
 
   @VisibleForTesting
   public List getInputs() {
-    return xi5250Crt.getInputFields();
+    return xi5250Crt.getPendingFields();
   }
 
   public static class ScreenField extends XI5250Field {

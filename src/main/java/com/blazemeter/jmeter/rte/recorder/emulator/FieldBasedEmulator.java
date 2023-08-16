@@ -38,7 +38,7 @@ public class FieldBasedEmulator extends XI5250CrtBase {
   }
 
   @Override
-  protected List<Input> getInputFields() {
+  protected List<Input> getPendingFields() {
     List<Input> inputs = new ArrayList<>();
     XI5250Field fieldFromPos = getFieldFromPos(initialColumn, initialRow);
     if (fieldFromPos == null) {
@@ -113,7 +113,7 @@ public class FieldBasedEmulator extends XI5250CrtBase {
     String label = (String) labelMap.get(circularPositionBegin);
     inputs.add(label != null ? new LabelInput(label, input.toString())
         : new CoordInput(circularPositionBegin, input.toString()));
-    // We don't want to consume this fields later on. Since are already processed. 
+    // We don't want to consume this fields later on. Since are already processed.
     fields.remove(firstField);
     fields.remove(lastField);
   }

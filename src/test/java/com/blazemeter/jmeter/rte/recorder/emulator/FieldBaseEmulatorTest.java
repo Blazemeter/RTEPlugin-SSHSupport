@@ -25,7 +25,7 @@ public class FieldBaseEmulatorTest {
   @Test
   public void shouldDiscardModifiedFieldsConstitutedByNullsWhenGetInputFields() {
     ((XI5250FieldMDT) emulator.getFields().get(0)).setMDTOn();
-    List<Input> inputFields = emulator.getInputFields();
+    List<Input> inputFields = emulator.getPendingFields();
     assertThat(inputFields).isEqualTo(Collections.singletonList(new CoordInput(new Position(1, 1),
         "")));
   }

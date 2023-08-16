@@ -60,7 +60,7 @@ public class Vt420Client extends BaseProtocolClient implements CharacterBasedPro
   public static final TerminalType TERMINAL_TYPE = new TerminalType("VT420-7", SCREEN_SIZE);
   private static final Logger LOG = LoggerFactory.getLogger(Vt420Client.class);
   private TerminalClient client;
-  private Map<TerminalStateListener, Vt420TerminalStateListenerProxy> listeners =
+  private final Map<TerminalStateListener, Vt420TerminalStateListenerProxy> listeners =
       new ConcurrentHashMap<>();
 
   private static EnumMap<NavigationType, String> buildNavigationKeysMapping() {

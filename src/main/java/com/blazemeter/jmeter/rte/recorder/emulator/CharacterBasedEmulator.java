@@ -55,62 +55,57 @@ public class CharacterBasedEmulator extends
   }
 
   @Override
-  protected synchronized void processKeyEvent(KeyEvent e) {
-    if (isKeyPressed(e)) {
-      LOG.info("[SKIP][KEY_RELEASED]: {}", e);
-      return;
+  public synchronized void processKeyEvent(KeyEvent currentKeyEvent) {
+    Optional<AttentionKey> attentionKey = getAttentionKeyFromKeyEvent(currentKeyEvent);
+    LOG.debug("Received KeyEvent=[{}]", currentKeyEvent);
+    switch (currentKeyEvent.getID()) {
+      case KeyEvent.KEY_TYPED:
+        if (attentionKey.isPresent() || isNavigationKey(currentKeyEvent)) {
+          return;
+        }
+        LOG.debug("Processing key=[{}]", currentKeyEvent);
+        handleTriggeredKey(currentKeyEvent);
+        break;
+      case KeyEvent.KEY_RELEASED:
+        break;
+      case KeyEvent.KEY_PRESSED:
+        if (attentionKey.isPresent() || isNavigationKey(currentKeyEvent)) {
+          LOG.debug("Processing key=[{}]", currentKeyEvent);
+          handleTriggeredKey(currentKeyEvent);
+        }
+        break;
+      default:
+        throw new UnsupportedOperationException(
+            String.format("KeyEvent with id [%s] not supported yet",
+                currentKeyEvent.getID()));
     }
+  }
 
-    //We use the extended key code to avoid problems with international keyboards
-    AttentionKey attentionKey = KEY_EVENTS.get(new KeyEventMap(e.getModifiers(),
-        e.getExtendedKeyCode()));
-    LOG.info("[ATTN_KEY] '{}'. Event {}", attentionKey, e);
+  private Optional<AttentionKey> getAttentionKeyFromKeyEvent(KeyEvent currentKeyEvent) {
+    return Optional.ofNullable(KEY_EVENTS.get(new KeyEventMap(currentKeyEvent.getModifiers(),
+        currentKeyEvent.getExtendedKeyCode())));
+  }
 
-    if (attentionKey == null && isKeyReleased(e) && !isNavigationKey(e)) {
-      LOG.info("[SKIP][Released Attention Key]: {}", e);
-      return;
-    }
-
-    if (attentionKey != null && isKeyTyped(e)) {
-      LOG.info("[SKIP][Typed Attention Keu]: {}", e);
-      return;
-    }
-
-    /*
-     * At this point we are:
-     * - Processing Key Typed (The final result of the combination of keys)
-     * - Processing Key Released (For Attention Keys/Function Key that do not generate text)
-     * - Ignoring Key Pressed
-     */
-
-    if (attentionKey == null && !locked) {
+  private void handleTriggeredKey(KeyEvent e) {
+    Optional<AttentionKey> attentionKey = getAttentionKeyFromKeyEvent(e);
+    if (!attentionKey.isPresent() && !locked) {
       sendToTheServer(e);
       lockEmulator(false, "After sending the key to the server = " + e);
-    } else if (attentionKey != null) {
-      handleAttentionKey(e, attentionKey);
+    } else if (attentionKey.isPresent()) {
+      handleAttentionKey(e, attentionKey.get());
     } else {
       handleForcedChar(e);
     }
   }
 
-  private boolean isNavigationKey(KeyEvent e) {
-    return Arrays.asList(
-            KeyEvent.VK_TAB, KeyEvent.VK_DOWN,
-            KeyEvent.VK_UP, KeyEvent.VK_LEFT,
-            KeyEvent.VK_RIGHT)
-        .contains(e.getKeyCode());
-  }
-
   private void sendToTheServer(KeyEvent e) {
     lockEmulator(true, "Before sending key");
-    LOG.info("[SENDING] Event: '{}'", e);
     currentSwingWorker = sendKeyEvent(e);
     currentSwingWorker.execute();
   }
 
   private void handleForcedChar(KeyEvent e) {
-    LOG.info("[FORCED] Sending key '{}'", e.getKeyChar());
-    currentSwingWorker = sendKeyEvent(e); //Aqui es que se genera el texto
+    currentSwingWorker = sendKeyEvent(e);
     currentSwingWorker.execute();
     lockEmulator(false, "Forced");
     e.consume();
@@ -123,16 +118,32 @@ public class CharacterBasedEmulator extends
       processAttentionKey(e, attentionKey);
       lastTerminalScreen = new Screen(currentScreen);
     } else if (attentionKey == AttentionKey.RESET) {
-      LOG.info("[CONTROL] Control key pressed. Waiting for the following key.");
       e.consume();
     } else {
-      LOG.info("[ATTN KEY IGNORED]. Value='{}'", attentionKey);
       e.consume();
     }
   }
 
   @Override
-  protected List<Input> getInputFields() {
+  protected void processAttentionKey(KeyEvent e, AttentionKey attentionKey) {
+    List<Input> fields = getPendingFields();
+    for (TerminalEmulatorListener listener : terminalEmulatorListeners) {
+      setKeyboardLock(true);
+      listener.onAttentionKey(attentionKey, fields, sampleName);
+    }
+  }
+
+  private boolean isNavigationKey(KeyEvent e) {
+    List<Integer> navigationKeys = Arrays.asList(
+        KeyEvent.VK_TAB, KeyEvent.VK_DOWN,
+        KeyEvent.VK_UP, KeyEvent.VK_LEFT,
+        KeyEvent.VK_RIGHT);
+    return navigationKeys.contains(e.getKeyCode())
+        || navigationKeys.contains(e.getExtendedKeyCode());
+  }
+
+  @Override
+  protected List<Input> getPendingFields() {
     if (inputBuffer.length() > 0 || repetition != 0) {
       buildDefaultInputWhenNoNavigationType();
       insertCurrentInput();
@@ -214,21 +225,12 @@ public class CharacterBasedEmulator extends
 
   private void recordInput(String value) {
     Position cursorPosition = getCursorPosition();
-    LOG.info("[RECORDING] Sending Value: '{}'. Cursor position: '{}'", value, cursorPosition);
     terminalClient.send(value);
     boolean validInput = validInput(cursorPosition);
 
     if (validInput) {
-      String unicodeString = value;
-      if (CommandUtils.isControlCode(value)) {
-        unicodeString = CommandUtils.getUnicodeString(value);
-        LOG.info("[RECORDING][UNICODE] Value parsed to '{}'", unicodeString);
-      }
-
       Optional<NavigationType> navigationKey = getNavigationType(value);
       if (navigationKey.isPresent()) {
-        LOG.info("[RECORDING][NAV] Navigation key detected: '{}'. CurrentInput='{}'",
-            navigationKey.get(), currentInput);
         if (currentInput.isVoid()) {
           buildNavigationInput(navigationKey.get());
         } else {
@@ -236,25 +238,16 @@ public class CharacterBasedEmulator extends
           buildNavigationInput(navigationKey.get());
         }
       } else {
-        LOG.info("[RECORDING][NO_NAV] No navigation key detected.");
         if (lastCursorPosition != null
             && !lastCursorPosition.isConsecutiveWith(cursorPosition)
             && inputBuffer.length() != 0) {
-          LOG.info("[RECORDING][NO_NAV] CurrentInput='{}'. ", currentInput);
           buildDefaultInputWhenNoNavigationType();
           insertCurrentInput();
           currentInput.withNavigationType(NavigationType.TAB);
-          LOG.info("[RECORDING][NO_NAV] Build. CurrentInput={}", currentInput);
-        } else {
-          LOG.info("[RECORDING][NO_NAV] No build. Current input '{}'.", currentInput);
         }
         inputBuffer.append(value);
       }
-    } else {
-      LOG.warn("[RECORDING_INPUT]. Apparently, the input is invalid. Value= {}, Position={}",
-          value, cursorPosition);
     }
-
     lastCursorPosition = new Position(cursorPosition);
     lastTerminalScreen = new Screen(currentScreen);
   }
@@ -267,7 +260,6 @@ public class CharacterBasedEmulator extends
   }
 
   private void buildNavigationInput(NavigationType type) {
-    LOG.info("Navigation key detected {}", type);
     if (inputBuffer.length() > 0 || (repetition != 0 && !type
         .equals(currentInput.getNavigationType()))) {
       buildDefaultInputWhenNoNavigationType();
@@ -281,7 +273,6 @@ public class CharacterBasedEmulator extends
   }
 
   private void buildDefaultInputWhenNoNavigationType() {
-    LOG.info("[BUILD] Default input when no navigation type");
     if (currentInput.getNavigationType() == null) {
       currentInput = new NavigationInputBuilder()
           .withRepeat(repetition)

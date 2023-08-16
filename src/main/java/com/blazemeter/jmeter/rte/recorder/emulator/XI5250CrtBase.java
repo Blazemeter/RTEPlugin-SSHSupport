@@ -17,7 +17,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import javax.swing.JOptionPane;
 import net.infordata.em.crt.XICrtBuffer;
@@ -84,15 +83,14 @@ public abstract class XI5250CrtBase<T extends RteProtocolClient> extends XI5250C
   protected T terminalClient;
   protected StatusPanel statusPanel;
   protected boolean locked = false;
-  protected AtomicBoolean atomicLocked = new AtomicBoolean(false);
   protected boolean copyPaste = false;
   protected Consumer<Boolean> pasteConsumer;
   protected AttributeTranslator attributeTranslator;
-  private List<TerminalEmulatorListener> terminalEmulatorListeners;
-  private String sampleName = "";
+  protected List<TerminalEmulatorListener> terminalEmulatorListeners;
+  protected String sampleName = "";
   private Set<AttentionKey> supportedAttentionKeys;
 
-  protected abstract List<Input> getInputFields();
+  protected abstract List<Input> getPendingFields();
 
   @Override
   protected synchronized void processKeyEvent(KeyEvent e) {
@@ -112,7 +110,7 @@ public abstract class XI5250CrtBase<T extends RteProtocolClient> extends XI5250C
   private void processBackSpace(KeyEvent e, AttentionKey attentionKey) {
     if ((!locked && !e.isConsumed()) || attentionKey != null) {
       /*
-        By default XI5250Crt only move the cursor when the backspace key is 
+        By default XI5250Crt only move the cursor when the backspace key is
         pressed and delete when shift mask is enabled, in this way always delete
        */
       if (e.getKeyCode() == KeyEvent.VK_BACK_SPACE) {
@@ -128,7 +126,11 @@ public abstract class XI5250CrtBase<T extends RteProtocolClient> extends XI5250C
   }
 
   protected void processAttentionKey(KeyEvent e, AttentionKey attentionKey) {
-    List<Input> fields = getInputFields();
+    if (!isAttentionKeyValid(attentionKey)) {
+      showUserMessage(attentionKey + " not supported for current protocol");
+      return;
+    }
+    List<Input> fields = getPendingFields();
     for (TerminalEmulatorListener listener : terminalEmulatorListeners) {
       setKeyboardLock(true);
       listener.onAttentionKey(attentionKey, fields, sampleName);
@@ -172,16 +174,10 @@ public abstract class XI5250CrtBase<T extends RteProtocolClient> extends XI5250C
     int keyCode = e.getKeyCode();
 
     if (isKeyReleased(e) && keyCode == keyCodeFromKeyMask && !copyPaste) {
-      LOG.info("Is reason 1");
       return true;
     }
 
-    if (isKeyPressed(e) && keyCode != keyCodeFromKeyMask) {
-      LOG.info("Is reason 2");
-      return true;
-    }
-
-    return false;
+    return isKeyPressed(e) && keyCode != keyCodeFromKeyMask;
   }
 
   protected boolean isKeyReleased(KeyEvent e) {
@@ -372,7 +368,7 @@ public abstract class XI5250CrtBase<T extends RteProtocolClient> extends XI5250C
     }
 
     /*
-    From a given color it will look for a similar color in the xtn5250 palette and retrieve the 
+    From a given color it will look for a similar color in the xtn5250 palette and retrieve the
     index of it.
      */
     private int getColorIndexInXtn5250Palette(Color segmentColor) {
